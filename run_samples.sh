@@ -17,7 +17,7 @@ for i in "${!SAMPLES[@]}"; do
   echo "----------------------------------------------------------------"
   
   # Encode the JSON string using the C++ encoder and capture full output
-  FULL_OUTPUT=$(./cpp/build/url_safe_encoder "${SAMPLES[$i]}")
+  FULL_OUTPUT=$(./cpp/build/url_safe_encoder "${SAMPLES[$i]}" "lz4")
   
   # Print the full output from url_safe_encoder
   echo "Output from url_safe_encoder:"
