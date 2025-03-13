@@ -1,6 +1,6 @@
 .PHONY: all build clean run-samples
 
-all: build
+all: build build_wasm
 
 build:
 	@echo "Building the URL safe encoder..."

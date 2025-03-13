@@ -27,7 +27,8 @@ std::vector<uint8_t> typedArrayToVector(const emscripten::val& array) {
 std::string encode(const emscripten::val& data, bool useZstd) {
     auto input = typedArrayToVector(data);
     std::string inputStr(input.begin(), input.end());
-    return UQPack::encode(inputStr, useZstd ? UQPack::CompressionType::ZSTD : UQPack::CompressionType::LZ4, true, -1);
+    json j = json::parse(inputStr);
+    return UQPack::encode(j, useZstd ? UQPack::CompressionType::ZSTD : UQPack::CompressionType::LZ4);
 }
 
 emscripten::val decode(const std::string& encoded) {

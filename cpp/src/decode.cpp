@@ -9,6 +9,7 @@
 #include <siphash.hpp>
 #include <lz4.h>
 #include <zstd.h>
+#include <brotli/decode.h>
 #include <common.hpp>
 
 // UQPack::decode: Decode a URL-safe string back into binary data.
@@ -31,6 +32,53 @@ namespace UQPack {
         
         // Return only the decompressed portion
         return std::vector<std::uint8_t>(decompressBuffer.begin(), decompressBuffer.begin() + decompressedSize);
+    }
+
+    // Helper function to decompress data using Brotli
+    std::vector<std::uint8_t> decompressWithBrotli(const std::uint8_t* compressedData, size_t compressedSize) {
+        // Create a decoder state
+        BrotliDecoderState* state = BrotliDecoderCreateInstance(nullptr, nullptr, nullptr);
+        if (!state) {
+            throw std::runtime_error("Failed to create Brotli decoder instance");
+        }
+
+        // Start with a reasonable buffer size
+        size_t bufferSize = compressedSize * 4;  // Assume up to 4:1 compression ratio
+        std::vector<std::uint8_t> decompressBuffer(bufferSize);
+        size_t availableIn = compressedSize;
+        const uint8_t* nextIn = compressedData;
+        size_t availableOut = bufferSize;
+        uint8_t* nextOut = decompressBuffer.data();
+        size_t totalOut = 0;
+        BrotliDecoderResult result;
+
+        do {
+            result = BrotliDecoderDecompressStream(
+                state,
+                &availableIn,
+                &nextIn,
+                &availableOut,
+                &nextOut,
+                &totalOut);
+
+            if (result == BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT) {
+                // Buffer is too small, resize it
+                size_t currentSize = decompressBuffer.size();
+                decompressBuffer.resize(currentSize * 2);
+                availableOut = currentSize;
+                nextOut = decompressBuffer.data() + totalOut;
+            }
+        } while (result == BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT);
+
+        BrotliDecoderDestroyInstance(state);
+
+        if (result != BROTLI_DECODER_RESULT_SUCCESS) {
+            throw std::runtime_error("Brotli decompression failed");
+        }
+
+        // Resize buffer to actual decompressed size
+        decompressBuffer.resize(totalOut);
+        return decompressBuffer;
     }
 
     // Helper function to decompress data using zstd
@@ -64,13 +112,7 @@ namespace UQPack {
                                         decompressBuffer.begin() + decompressedSize);
     }
 
-    std::vector<std::uint8_t> decodeInternal(const std::string& encodedString, CompressionType& outCompressionType, bool& outUseMessagePack) {
-        // Define our URL-safe character sets.
-        const std::vector<std::string> bases = {
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_",         // Base64 URL-safe
-            "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_.~"         // Base70
-        };
-
+    std::vector<std::uint8_t> decodeInternal(const std::string& encodedString, CompressionType& outCompressionType) {
         // Parse the encoded string format: header + ":" + encoded data + ":" + checksum
         size_t firstColon = encodedString.find(':');
         size_t lastColon = encodedString.rfind(':');
@@ -112,12 +154,12 @@ namespace UQPack {
         
         // Extract compression flags
         // Bit 0 (0x1): LZ4 compression used
-        // Bit 1 (0x2): MessagePack used
-        // Bit 2 (0x4): Zstd compression used
+        // Bit 1 (0x2): Zstd compression used
+        // Bit 2 (0x4): Brotli compression used
         // Bit 3 (0x8): Reserved for future use
         bool useLZ4 = (compressionFlags & 0x1) != 0;
-        bool useZstd = (compressionFlags & 0x4) != 0;
-        bool useMessagePack = (compressionFlags & 0x2) != 0;
+        bool useZstd = (compressionFlags & 0x2) != 0;
+        bool useBrotli = (compressionFlags & 0x4) != 0;
         
         // Validate compression flags - only one compression type should be set
         if (useLZ4 && useZstd) {
@@ -141,7 +183,7 @@ namespace UQPack {
         // Determine which base was used for encoding
         int baseIndex = (encodingFlags & 0x1) ? 1 : 0;
 
-        std::string charset = bases[baseIndex];
+        std::string charset = basesCharSet[baseIndex];
         const int base = charset.length();
         
         // Convert from base-N to bytes
@@ -149,7 +191,6 @@ namespace UQPack {
         
         // Set output parameters
         outCompressionType = CompressionType::NONE;
-        outUseMessagePack = useMessagePack;
         
         // Handle decompression if needed
         if (useLZ4) {
@@ -163,6 +204,9 @@ namespace UQPack {
         } else if (useZstd) {
             outCompressionType = CompressionType::ZSTD;
             decodedData = decompressWithZstd(decodedData.data(), decodedData.size());
+        } else if (useBrotli) {
+            outCompressionType = CompressionType::BROTLI;
+            decodedData = decompressWithBrotli(decodedData.data(), decodedData.size());
         }
         
         return decodedData;

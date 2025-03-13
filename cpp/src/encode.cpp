@@ -5,6 +5,7 @@
 #include <iostream>
 #include <lz4.h>
 #include <zstd.h>
+#include <brotli/encode.h>
 #include <siphash.hpp>
 #include <common.hpp>
 
@@ -46,6 +47,35 @@ namespace UQPack {
         std::copy(compressBuffer.begin(), compressBuffer.end(), finalBuffer.begin() + 4);
         
         return finalBuffer;
+    }
+
+    // Helper function to compress data using Brotli
+    std::vector<std::uint8_t> compressWithBrotli(const std::uint8_t* data, size_t dataSize, int quality) {
+        // Calculate maximum compressed size
+        size_t maxCompressedSize = BrotliEncoderMaxCompressedSize(dataSize);
+        if (maxCompressedSize == 0) {
+            throw std::runtime_error("Failed to calculate Brotli maximum compressed size");
+        }
+
+        std::vector<std::uint8_t> compressBuffer(maxCompressedSize);
+        size_t encodedSize = maxCompressedSize;
+
+        // Compress the data
+        if (!BrotliEncoderCompress(
+                quality,  // Quality level (0-11)
+                BROTLI_DEFAULT_WINDOW,  // LZ77 window size
+                BROTLI_DEFAULT_MODE,  // Default compression mode
+                dataSize,  // Input size
+                reinterpret_cast<const uint8_t*>(data),  // Input data
+                &encodedSize,  // Output size (modified in-place)
+                compressBuffer.data()  // Output buffer
+            )) {
+            throw std::runtime_error("Brotli compression failed");
+        }
+
+        // Resize buffer to actual compressed size
+        compressBuffer.resize(encodedSize);
+        return compressBuffer;
     }
 
     // Helper function to compress data using zstd
@@ -93,6 +123,8 @@ namespace UQPack {
                 return compressWithLZ4(data, dataSize);
             case CompressionType::ZSTD:
                 return compressWithZstd(data, dataSize);
+            case CompressionType::BROTLI:
+                return compressWithBrotli(data, dataSize, 11);
             case CompressionType::NONE:
             default:
                 // No compression, just copy the data
@@ -101,15 +133,8 @@ namespace UQPack {
     }
 
     // Low-level encode function for binary data with compression type
-    std::string encode(const std::vector<std::uint8_t>& data, CompressionType compressionType, bool useMessagePack, int baseIndex) {
-        // Define our URL-safe character sets.
-        const std::vector<std::string> bases = {
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_",         // Base64 URL-safe
-            "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_.~"         // Base70
-        };
-
-        std::string charset = bases[baseIndex];
-
+    std::string encode(const std::vector<std::uint8_t>& data, CompressionType compressionType, int baseIndex) {
+        std::string charset = basesCharSet[baseIndex];
         std::string encoded = convertToBase(data, charset);
 
         // Calculate checksum using the common implementation
@@ -120,8 +145,8 @@ namespace UQPack {
         
         // Create a 4-bit flag (represented as a hex digit) to indicate the compression used:
         // Bit 0 (0x1): LZ4 compression used
-        // Bit 1 (0x2): MessagePack used
-        // Bit 2 (0x4): Zstd compression used
+        // Bit 1 (0x2): Zstd compression used
+        // Bit 2 (0x4): Brotli compression used
         // Bit 3 (0x8): Reserve for future use
         int compressionFlags = 0;
         
@@ -131,6 +156,9 @@ namespace UQPack {
                 compressionFlags |= 0x1;
                 break;
             case CompressionType::ZSTD:
+                compressionFlags |= 0x2;
+                break;
+            case CompressionType::BROTLI:
                 compressionFlags |= 0x4;
                 break;
             case CompressionType::NONE:
@@ -138,9 +166,6 @@ namespace UQPack {
                 // No compression flags set
                 break;
         }
-        
-        // Set MessagePack flag if used
-        if (useMessagePack) compressionFlags |= 0x2;
         
         // Create a 4-bit flag (represented as a hex digit) to indicate the encoding and cipher process:
         // First bit (0x1) - Encoding step:
@@ -177,16 +202,9 @@ namespace UQPack {
     }
     
     // Encode JSON data with compression type
-    std::string encode(const json& jsonData, CompressionType compressionType, bool useMessagePack, int baseIndex) {
+    std::string encode(const json& jsonData, CompressionType compressionType, int baseIndex) {
         // Convert the JSON to MessagePack or string format
-        std::vector<uint8_t> serializedData;
-        if (useMessagePack) {
-            serializedData = json::to_msgpack(jsonData);
-        } else {
-            // If not using MessagePack, convert JSON to a string
-            std::string jsonDump = jsonData.dump();
-            serializedData = std::vector<uint8_t>(jsonDump.begin(), jsonDump.end());
-        }
+        std::vector<uint8_t> serializedData = json::to_msgpack(jsonData);
         
         // Process the data (compress if needed)
         std::vector<std::uint8_t> processedData;
@@ -204,6 +222,7 @@ namespace UQPack {
             switch (compressionType) {
                 case CompressionType::LZ4: std::cout << "LZ4"; break;
                 case CompressionType::ZSTD: std::cout << "Zstd"; break;
+                case CompressionType::BROTLI: std::cout << "Brotli"; break;
                 default: std::cout << "Unknown"; break;
             }
             
@@ -220,6 +239,6 @@ namespace UQPack {
         }
         
         // Encode the processed data
-        return encode(processedData, compressionType, useMessagePack, baseIndex);
+        return encode(processedData, compressionType, baseIndex);
     }
 }

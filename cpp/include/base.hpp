@@ -6,10 +6,16 @@
 #include <boost/multiprecision/cpp_int.hpp>
 
 namespace UQPack {
+    // Define our URL-safe character sets.
+    const std::vector<std::string> basesCharSet = {
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_",         // Base64 URL-safe
+        "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_.~"         // Base70
+    };
+
     // Convert a uint64_t to a base64 string
     inline std::string convertToBase64(uint64_t value) {
         // Base64 URL-safe character set
-        const char* base64chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+        const char* base64chars = basesCharSet[0].c_str();
         std::string result;
         
         // Convert to base64 by repeatedly dividing by 64

@@ -31,24 +31,23 @@ namespace UQPack {
     struct always_false : std::false_type {};
 
     // Forward declare internal decode function
-    std::vector<std::uint8_t> decodeInternal(const std::string& encodedString, CompressionType& outCompressionType, bool& outUseMessagePack);
+    std::vector<std::uint8_t> decodeInternal(const std::string& encodedString, CompressionType& outCompressionType);
+
+    // Decompression functions
+    std::vector<std::uint8_t> decompressWithBrotli(const std::uint8_t* data, size_t dataSize);
     
     // Main decode function template
     template<typename T>
     inline T decode(const std::string& encodedString) {
         CompressionType compressionType;
-        bool useMessagePack;
-        std::vector<std::uint8_t> decodedData = decodeInternal(encodedString, compressionType, useMessagePack);
+        std::vector<std::uint8_t> decodedData = decodeInternal(encodedString, compressionType);
         
         if constexpr (std::is_same_v<T, std::vector<std::uint8_t>>) {
-            return decodedData;
+            return decodedData; // Return raw bytes
         } else if constexpr (std::is_same_v<T, std::string>) {
             return std::string(reinterpret_cast<const char*>(decodedData.data()), decodedData.size());
         } else if constexpr (std::is_same_v<T, json>) {
-            if (useMessagePack) {
-                return json::from_msgpack(decodedData);
-            }
-            return json::parse(decodedData.begin(), decodedData.end());
+            return json::from_msgpack(decodedData);
         } else {
             static_assert(always_false<T>::value, "Unsupported decode type");
         }

@@ -31,6 +31,8 @@ int main(int argc, char* argv[])
                 compressionType = UQPack::CompressionType::LZ4;
             } else if (compressionArg == "zstd") {
                 compressionType = UQPack::CompressionType::ZSTD;
+            } else if (compressionArg == "brotli") {
+                compressionType = UQPack::CompressionType::BROTLI;
             } else {
                 // std::cerr << "Unknown compression type: " << compressionArg << std::endl;
                 // std::cerr << "Using default (lz4)" << std::endl;
@@ -42,14 +44,14 @@ int main(int argc, char* argv[])
         std::string urlsafeString = UQPack::encode(j, compressionType);
         std::cout << "Encoded string: " << urlsafeString << std::endl;
 
-        // Decode the string here
-        try {
-            json decodedData = UQPack::decode<json>(urlsafeString);
-            std::cout << "Decoded data: " << decodedData << std::endl;
-        } catch (const std::exception& e) {
-            std::cerr << "Error: " << e.what() << std::endl;
-            return 1;
-        }
+        // // Decode the string here
+        // try {
+        //     json decodedData = UQPack::decode<json>(urlsafeString);
+        //     std::cout << "Decoded data: " << decodedData << std::endl;
+        // } catch (const std::exception& e) {
+        //     std::cerr << "Error: " << e.what() << std::endl;
+        //     return 1;
+        // }
         
         return 0;
     } catch (const std::exception& e) {

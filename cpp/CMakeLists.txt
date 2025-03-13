@@ -26,6 +26,17 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(zstd)
 
+# Find or fetch Brotli
+set(BROTLI_BUNDLED_MODE ON)
+set(BROTLI_DISABLE_TESTS ON)
+FetchContent_Declare(
+    brotli
+    GIT_REPOSITORY https://github.com/google/brotli.git
+    GIT_TAG v1.1.0
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
+FetchContent_MakeAvailable(brotli)
+
 # Fetch required Boost modules (header-only)
 FetchContent_Declare(
     boost_mp
@@ -84,6 +95,9 @@ target_link_libraries(uqpack
     PRIVATE
         nlohmann_json::nlohmann_json
         libzstd_static
+        brotlienc
+        brotlidec
+        brotlicommon
 )
 
 # If building as an executable
