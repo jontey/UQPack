@@ -66,39 +66,50 @@ include_directories(SYSTEM
     ${boost_core_SOURCE_DIR}/include
 )
 
-# Source files for the encoder library
-set(ENCODER_SOURCES
-    src/encode.cpp
-    src/decode.cpp
-    src/common.cpp
-    src/lz4.c
-)
-
 # Determine if this is being used as a library or an executable
 option(BUILD_EXECUTABLE "Build as executable" ON)
 option(BUILD_SHARED_LIBS "Build as shared library" OFF)
 
-# Create the encoder library
-add_library(uqpack ${ENCODER_SOURCES})
+# Source files for the decoder library
+set (COMMON_SOURCES
+    src/common.cpp
+    src/decode.cpp
+)
 
-# Set include directories for the library
+set(ENCODER_SOURCES
+    src/encode.cpp
+    src/lz4.c
+)
+
+# Create the decoder library
+add_library(uqpack ${COMMON_SOURCES})
 target_include_directories(uqpack
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${zstd_SOURCE_DIR}/lib
         ${json_SOURCE_DIR}/include
         ${Boost_INCLUDE_DIRS}
 )
-
-# Link libraries to the encoder library
+# Link libraries to the decoder library
 target_link_libraries(uqpack
     PRIVATE
         nlohmann_json::nlohmann_json
-        libzstd_static
-        brotlienc
         brotlidec
         brotlicommon
 )
+
+if(NOT EMSCRIPTEN)
+    target_sources(uqpack PRIVATE ${ENCODER_SOURCES})
+    target_include_directories(uqpack
+        PUBLIC
+            ${zstd_SOURCE_DIR}/lib
+    )
+    # Link libraries to the decoder library
+    target_link_libraries(uqpack
+        PRIVATE
+            brotlienc
+            libzstd_static
+    )
+endif()
 
 # If building as an executable
 if(EMSCRIPTEN)
@@ -106,8 +117,6 @@ if(EMSCRIPTEN)
     set(WASM_LINK_FLAGS
         "-s WASM=1"
         "-O3"
-        "-s EXPORTED_RUNTIME_METHODS=['ccall','cwrap','getValue','setValue']"
-        "-s EXPORTED_FUNCTIONS=['_malloc','_free']"
         "-s ALLOW_MEMORY_GROWTH=1"
         "-s NO_EXIT_RUNTIME=1"
         "-s MODULARIZE=1"
@@ -117,7 +126,6 @@ if(EMSCRIPTEN)
         "-s USE_ES6_IMPORT_META=0"
         "-s ENVIRONMENT='web,node'"
         "-s EMBIND_STD_STRING_IS_UTF8=1"
-        "-s ASSERTIONS=1"
         "-lembind"
     )
 

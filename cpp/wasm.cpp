@@ -1,7 +1,6 @@
 #include <emscripten/bind.h>
 #include <string>
 #include <vector>
-#include <encode.hpp>
 #include <decode.hpp>
 
 using namespace emscripten;
@@ -24,20 +23,14 @@ std::vector<uint8_t> typedArrayToVector(const emscripten::val& array) {
 }
 
 // WebAssembly exported functions
-std::string encode(const emscripten::val& data, bool useZstd) {
-    auto input = typedArrayToVector(data);
-    std::string inputStr(input.begin(), input.end());
-    json j = json::parse(inputStr);
-    return UQPack::encode(j, useZstd ? UQPack::CompressionType::ZSTD : UQPack::CompressionType::LZ4);
-}
-
 emscripten::val decode(const std::string& encoded) {
-    std::string decoded = UQPack::decode<std::string>(encoded);
-    std::vector<uint8_t> decodedVec(decoded.begin(), decoded.end());
-    return vectorToTypedArray(decodedVec);
+    // Decode to JSON format
+    json result = UQPack::decode<json>(encoded);
+    
+    // Create a JavaScript string directly
+    return emscripten::val(result.dump());
 }
 
 EMSCRIPTEN_BINDINGS(uqpack_module) {
-    function("encode", &encode);
     function("decode", &decode);
 }

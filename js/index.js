@@ -1,5 +1,4 @@
 // decode.js
-const msgpack = require('@msgpack/msgpack'); // Install via npm: npm install @msgpack/msgpack
 
 // Load WebAssembly module
 const wasmPath = require('path').join(__dirname, '../cpp/dist/uqpack_wasm.js');
@@ -13,9 +12,7 @@ async function UQDecode(urlSafeStr) {
   // Decode using WebAssembly
   const decodedBuffer = module.decode(urlSafeStr);
 
-  // Convert Uint8Array to Buffer and decode msgpack
-  const buffer = Buffer.from(decodedBuffer);
-  return msgpack.decode(buffer);
+  return decodedBuffer;
 }
 
 async function main() {
@@ -30,9 +27,9 @@ async function main() {
     // Decode using WebAssembly module
     const result = await UQDecode(urlSafeStr);
     
-    if (typeof result === 'object' && !Buffer.isBuffer(result)) {
+    if (typeof result === 'string') {
       // If result is a JSON object (from MessagePack)
-      const jsonData = result;
+      const jsonData = JSON.parse(result);
       const inputBytes = Buffer.byteLength(urlSafeStr, 'utf8');
       const outputBytes = Buffer.byteLength(JSON.stringify(jsonData), 'utf8');
       const compressionRatio = (1 - (inputBytes / outputBytes)) * 100;
