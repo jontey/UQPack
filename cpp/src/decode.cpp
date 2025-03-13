@@ -154,7 +154,7 @@ namespace UQPack {
         // Handle decompression if needed
         if (useLZ4) {
             outCompressionType = CompressionType::LZ4;
-            // Get original size from the first 4 bytes
+            // Get original size from the first 4 bytes. This is necessary for lz4 which does not support dynamically allocating memory during decompression
             if (decodedData.size() < 4) {
                 throw std::runtime_error("Invalid compressed data: too short");
             }

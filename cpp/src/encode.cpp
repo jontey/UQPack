@@ -37,9 +37,15 @@ namespace UQPack {
             throw std::runtime_error("LZ4 compression failed");
         }
         
-        // Return only the compressed portion
+                // Return only the compressed portion
         compressBuffer.resize(compressedSize);
-        return compressBuffer;
+
+        // Prepend a custom header (4 bytes) containing the original data size.
+        std::vector<std::uint8_t> finalBuffer(4 + compressBuffer.size());
+        *reinterpret_cast<uint32_t*>(finalBuffer.data()) = static_cast<uint32_t>(dataSize);
+        std::copy(compressBuffer.begin(), compressBuffer.end(), finalBuffer.begin() + 4);
+        
+        return finalBuffer;
     }
 
     // Helper function to compress data using zstd
